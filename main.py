@@ -13,7 +13,7 @@ app = FastAPI(
 )
 
 # ------------------------------------------------------------------------------
-# 配置信息（已纠正为你的正确收款地址）
+# 配置信息（已使用你的正确收款地址）
 # ------------------------------------------------------------------------------
 RECEIVER_ADDRESS = os.getenv("RECEIVER_ADDRESS", "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c").lower()
 BASE_USDC_ADDRESS = os.getenv("BASE_USDC_ADDRESS", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").lower()
@@ -224,3 +224,11 @@ def check_risk(
         ],
         "recommendation": "Safe to interact."
     }
+
+# ------------------------------------------------------------------------------
+# 启动入口（确保 Render 环境变量 PORT 和端口能被持续监听）
+# ------------------------------------------------------------------------------
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 10000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
