@@ -1,0 +1,19 @@
+{
+  "name": "Base Risk Checker Agent",
+  "description": "Automated token risk analysis agent on Base L2 providing honeypot and sell-tax detection.",
+  "version": "1.0.0",
+  "author": "xfrontier",
+  "payment": {
+    "protocol": "x402",
+    "price_usdc": "0.01",
+    "network": "base",
+    "pay_to": "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c"
+  },
+  "endpoints": [
+    {
+      "path": "/v1/check-risk",
+      "method": "GET",
+      "description": "Check safety and honeypot risk for a specific token contract address."
+    }
+  ]
+}
