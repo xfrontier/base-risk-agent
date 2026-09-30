@@ -6,11 +6,11 @@ from x402 import x402ResourceServerSync
 app = FastAPI(title="Base Risk Checker Agent")
 
 # ⚠️ 替换为你的 Coinbase 钱包地址 (0x 开头)
-RECEIVER_WALLET = "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c"
+RECEIVER_WALLET = "0x你的Coinbase钱包地址"
 
-# 初始化 x402 收款配置：在 Base 链上为每次请求收取 0.01 USDC
+# 初始化 x402 收款配置：参数名更新为 address
 x402_server = x402ResourceServerSync(
-    pay_to_address=RECEIVER_WALLET,
+    address=RECEIVER_WALLET,
     price_usdc=0.01,
     network="base"
 )
@@ -68,6 +68,5 @@ def check_token_risk(target_address: str):
 
 if __name__ == "__main__":
     import uvicorn
-    import os
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
