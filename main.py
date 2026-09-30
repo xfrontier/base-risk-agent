@@ -2,6 +2,13 @@ import os
 import requests
 from fastapi import FastAPI, Request, Response, status
 
+# 1. 先初始化 FastAPI 应用（这一行必须放在最前面！）
+app = FastAPI(title="Base Risk Checker Agent")
+
+# ⚠️ 替换为你的 Coinbase 钱包地址 (0x 开头)
+RECEIVER_WALLET = "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c"
+
+# 2. agent.json 元数据公开接口
 @app.get("/agent.json")
 def get_agent_metadata():
     return {
@@ -23,22 +30,18 @@ def get_agent_metadata():
         ]
     }
 
-app = FastAPI(title="Base Risk Checker Agent")
-
-# ⚠️ 替换为你的 Coinbase 钱包地址 (0x 开头)
-RECEIVER_WALLET = "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c"
-
+# 3. x402 门禁拦截器
 @app.middleware("http")
 async def x402_protection_middleware(request: Request, call_next):
     """x402 协议标准拦截器"""
-    # 允许公开访问 API 文档和首页
+    # 白名单：公开访问文档、首页和 agent.json
     if request.url.path in ["/docs", "/openapi.json", "/", "/agent.json"]:
         return await call_next(request)
         
-    # 检查请求头中是否包含微支付凭证/证明
+    # 检查请求头中是否包含凭证
     x402_payment = request.headers.get("X-402-Payment") or request.headers.get("Authorization")
     
-    # 未付款或没有凭证，返回标准的 402 Payment Required 响应
+    # 未付款或没有凭证，返回标准的 402 Payment Required
     if not x402_payment:
         return Response(
             content='{"error": "Payment Required", "price_usdc": "0.01", "network": "base", "pay_to": "' + RECEIVER_WALLET + '"}',
@@ -53,6 +56,7 @@ async def x402_protection_middleware(request: Request, call_next):
 
     return await call_next(request)
 
+# 4. 风控查询业务接口
 @app.get("/v1/check-risk")
 def check_token_risk(target_address: str):
     """检测目标 Token/合约的链上风险"""
