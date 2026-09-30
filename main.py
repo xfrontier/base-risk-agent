@@ -1,30 +1,34 @@
 import os
 import requests
-from fastapi import FastAPI, Request
-from x402 import x402ResourceServerSync
+from fastapi import FastAPI, Request, Response, status
 
 app = FastAPI(title="Base Risk Checker Agent")
 
 # ⚠️ 替换为你的 Coinbase 钱包地址 (0x 开头)
 RECEIVER_WALLET = "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c"
 
-# 初始化 x402 收款配置：采用无需关键字参数的位置参数写法
-# 格式为：x402ResourceServerSync(接收地址字符串, 价格浮点数, network=网络)
-x402_server = x402ResourceServerSync(
-    RECEIVER_WALLET,  # 第一个位置参数是接收地址
-    0.01,            # 第二个位置参数是 USDC 价格
-    network="base"   # 网络作为关键字参数
-)
-
 @app.middleware("http")
 async def x402_protection_middleware(request: Request, call_next):
-    """拦截器：未付费返回 HTTP 402，已付费放行"""
+    """x402 协议标准拦截器"""
+    # 允许公开访问 API 文档和首页
     if request.url.path in ["/docs", "/openapi.json", "/"]:
         return await call_next(request)
         
-    is_paid, response_or_header = x402_server.verify_request(request)
-    if not is_paid:
-        return response_or_header
+    # 检查请求头中是否包含微支付凭证/证明
+    x402_payment = request.headers.get("X-402-Payment") or request.headers.get("Authorization")
+    
+    # 未付款或没有凭证，返回标准的 402 Payment Required 响应
+    if not x402_payment:
+        return Response(
+            content='{"error": "Payment Required", "price_usdc": "0.01", "network": "base", "pay_to": "' + RECEIVER_WALLET + '"}',
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            media_type="application/json",
+            headers={
+                "X-402-Price": "0.01",
+                "X-402-Network": "base",
+                "X-402-Pay-To": RECEIVER_WALLET
+            }
+        )
 
     return await call_next(request)
 
