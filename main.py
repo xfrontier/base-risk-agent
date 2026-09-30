@@ -2,6 +2,27 @@ import os
 import requests
 from fastapi import FastAPI, Request, Response, status
 
+@app.get("/agent.json")
+def get_agent_metadata():
+    return {
+        "name": "Base Risk Checker Agent",
+        "description": "Automated token risk analysis agent on Base L2 providing honeypot and sell-tax detection.",
+        "version": "1.0.0",
+        "payment": {
+            "protocol": "x402",
+            "price_usdc": "0.01",
+            "network": "base",
+            "pay_to": RECEIVER_WALLET
+        },
+        "endpoints": [
+            {
+                "path": "/v1/check-risk",
+                "method": "GET",
+                "description": "Check safety and honeypot risk for a specific token contract address."
+            }
+        ]
+    }
+
 app = FastAPI(title="Base Risk Checker Agent")
 
 # ⚠️ 替换为你的 Coinbase 钱包地址 (0x 开头)
@@ -11,7 +32,7 @@ RECEIVER_WALLET = "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c"
 async def x402_protection_middleware(request: Request, call_next):
     """x402 协议标准拦截器"""
     # 允许公开访问 API 文档和首页
-    if request.url.path in ["/docs", "/openapi.json", "/"]:
+    if request.url.path in ["/docs", "/openapi.json", "/", "/agent.json"]:
         return await call_next(request)
         
     # 检查请求头中是否包含微支付凭证/证明
