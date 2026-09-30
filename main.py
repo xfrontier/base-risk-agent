@@ -6,13 +6,14 @@ from x402 import x402ResourceServerSync
 app = FastAPI(title="Base Risk Checker Agent")
 
 # ⚠️ 替换为你的 Coinbase 钱包地址 (0x 开头)
-RECEIVER_WALLET = "0x你的Coinbase钱包地址"
+RECEIVER_WALLET = "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c"
 
-# 初始化 x402 收款配置：参数名更新为 address
+# 初始化 x402 收款配置：采用无需关键字参数的位置参数写法
+# 格式为：x402ResourceServerSync(接收地址字符串, 价格浮点数, network=网络)
 x402_server = x402ResourceServerSync(
-    address=RECEIVER_WALLET,
-    price_usdc=0.01,
-    network="base"
+    RECEIVER_WALLET,  # 第一个位置参数是接收地址
+    0.01,            # 第二个位置参数是 USDC 价格
+    network="base"   # 网络作为关键字参数
 )
 
 @app.middleware("http")
