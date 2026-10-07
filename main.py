@@ -13,7 +13,7 @@ app = FastAPI(
 )
 
 # ------------------------------------------------------------------------------
-# 配置信息（已使用你的正确收款地址）
+# 配置信息（使用你的正确收款地址）
 # ------------------------------------------------------------------------------
 RECEIVER_ADDRESS = os.getenv("RECEIVER_ADDRESS", "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c").lower()
 BASE_USDC_ADDRESS = os.getenv("BASE_USDC_ADDRESS", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").lower()
@@ -105,7 +105,7 @@ def verify_base_usdc_payment(tx_hash: str):
         return False, f"Blockchain verification error: {str(e)}"
 
 # ------------------------------------------------------------------------------
-# 中间件（异步实现）
+# 中间件（异步实现，拦截受保护接口）
 # ------------------------------------------------------------------------------
 @app.middleware("http")
 async def x402_protection_middleware(request: Request, call_next):
@@ -158,7 +158,32 @@ def read_root():
         "agent": "Base Risk Assessment Agent",
         "status": "online",
         "version": "1.0.0",
-        "x402_enabled": True
+        "x402_enabled": True,
+        "manifest": "/agent.json"
+    }
+
+# 新增：让外部网络/爬虫正常解析 Agent 清单信息的路由，解决 404 问题
+@app.get("/agent.json")
+def get_agent_manifest():
+    return {
+        "schema_version": "v1",
+        "name": "Base Risk Assessment Agent",
+        "description": "Real-time automated contract & wallet security risk check on Base Mainnet.",
+        "url": "https://base-risk-agent.onrender.com",
+        "payment": {
+            "protocol": "x402",
+            "price_usdc": "0.01",
+            "network": "base",
+            "pay_to": RECEIVER_ADDRESS
+        },
+        "endpoints": [
+            {
+                "path": "/v1/check-risk",
+                "method": "GET",
+                "params": {"address": "string", "chain": "string"},
+                "description": "Returns security risk score and findings for a target EVM address."
+            }
+        ]
     }
 
 @app.get("/stats")
@@ -226,7 +251,7 @@ def check_risk(
     }
 
 # ------------------------------------------------------------------------------
-# 启动入口（确保 Render 环境变量 PORT 和端口能被持续监听）
+# 启动入口（位于最底部）
 # ------------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
