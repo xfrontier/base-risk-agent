@@ -33,3 +33,22 @@ headers = {"Authorization": "Bearer tx_hash_here"}
 
 response = requests.get(url, params=params, headers=headers)
 print(response.json())
+
+
+## 🤖 How to Integrate with AI Agents
+
+If you are building an AI Trading Bot on Base using LangChain, you can easily add this $0.01 USDC security risk check as a tool:
+
+```python
+import requests
+from langchain_core.tools import tool
+
+@tool
+def check_base_address_risk(address: str, payment_tx_hash: str) -> dict:
+    """
+    Checks security risk for an EVM address on Base. Costs 0.01 USDC per call via x402 protocol.
+    """
+    url = "[https://base-risk-agent.onrender.com/v1/check-risk](https://base-risk-agent.onrender.com/v1/check-risk)"
+    headers = {"X-402-Payment": payment_tx_hash}
+    response = requests.get(url, params={"address": address}, headers=headers)
+    return response.json()
