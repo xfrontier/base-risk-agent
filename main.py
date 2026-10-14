@@ -8,12 +8,12 @@ from web3 import Web3
 
 app = FastAPI(
     title="Base Risk Assessment Agent API",
-    description="Automated risk analysis API on Base Mainnet protected by x402 payment protocol.",
+    description="Automated risk analysis API on Base Mainnet protected by x402 payment protocol and MCP standard.",
     version="1.0.0"
 )
 
 # ------------------------------------------------------------------------------
-# 配置信息（使用你的正确收款地址）
+# 配置信息
 # ------------------------------------------------------------------------------
 RECEIVER_ADDRESS = os.getenv("RECEIVER_ADDRESS", "0x141f20cb17221ea7a30cfb676ff2860afaf2ee9c").lower()
 BASE_USDC_ADDRESS = os.getenv("BASE_USDC_ADDRESS", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").lower()
@@ -105,7 +105,7 @@ def verify_base_usdc_payment(tx_hash: str):
         return False, f"Blockchain verification error: {str(e)}"
 
 # ------------------------------------------------------------------------------
-# 中间件（异步实现，拦截受保护接口）
+# 中间件（异步实现，拦截受保护接口，支持 PAYMENT-SIGNATURE）
 # ------------------------------------------------------------------------------
 @app.middleware("http")
 async def x402_protection_middleware(request: Request, call_next):
@@ -113,7 +113,12 @@ async def x402_protection_middleware(request: Request, call_next):
     client_ip = request.client.host if request.client else "unknown"
 
     if request.url.path in protected_paths:
-        x402_payment = request.headers.get("X-402-Payment") or request.headers.get("Authorization")
+        # 兼容标准的 PAYMENT-SIGNATURE、X-402-Payment 以及 Authorization 头
+        x402_payment = (
+            request.headers.get("PAYMENT-SIGNATURE") 
+            or request.headers.get("X-402-Payment") 
+            or request.headers.get("Authorization")
+        )
 
         if not x402_payment:
             log_request(request.url.path, client_ip, 402)
@@ -126,7 +131,7 @@ async def x402_protection_middleware(request: Request, call_next):
                     "network": "Base Mainnet",
                     "pay_to": RECEIVER_ADDRESS,
                     "usdc_token_contract": BASE_USDC_ADDRESS,
-                    "message": "Please send 0.01 USDC on Base to pay_to and pass the transaction hash in X-402-Payment or Authorization header."
+                    "message": "Please send 0.01 USDC on Base and pass transaction signature/hash in PAYMENT-SIGNATURE header."
                 }
             )
 
@@ -150,7 +155,7 @@ async def x402_protection_middleware(request: Request, call_next):
     return response
 
 # ------------------------------------------------------------------------------
-# API 路由
+# API 路由与清单接口
 # ------------------------------------------------------------------------------
 @app.get("/")
 def read_root():
@@ -159,10 +164,10 @@ def read_root():
         "status": "online",
         "version": "1.0.0",
         "x402_enabled": True,
-        "manifest": "/agent.json"
+        "mcp_manifest": "/.well-known/mcp.json",
+        "agent_manifest": "/agent.json"
     }
 
-# 新增：让外部网络/爬虫正常解析 Agent 清单信息的路由，解决 404 问题
 @app.get("/agent.json")
 def get_agent_manifest():
     return {
@@ -175,13 +180,38 @@ def get_agent_manifest():
             "price_usdc": "0.01",
             "network": "base",
             "pay_to": RECEIVER_ADDRESS
-        },
-        "endpoints": [
+        }
+    }
+
+# 符合标准 Model Context Protocol (MCP) 的清单接口
+@app.get("/.well-known/mcp.json")
+def get_mcp_manifest():
+    return {
+        "schema_version": "v1",
+        "name": "base-security-guardrail",
+        "description": "Autonomous security firewall for checking address/contract risk before executing Base transactions.",
+        "tools": [
             {
-                "path": "/v1/check-risk",
+                "name": "check_address_risk",
+                "description": "Evaluate on-chain risk score and malicious activity flags for a target address on Base.",
+                "endpoint": "/v1/check-risk",
                 "method": "GET",
-                "params": {"address": "string", "chain": "string"},
-                "description": "Returns security risk score and findings for a target EVM address."
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "address": {
+                            "type": "string",
+                            "description": "The 0x EVM token or contract address on Base to inspect"
+                        }
+                    },
+                    "required": ["address"]
+                },
+                "payment": {
+                    "protocol": "x402",
+                    "price_usdc": "0.01",
+                    "network": "base-mainnet",
+                    "payee": RECEIVER_ADDRESS
+                }
             }
         ]
     }
@@ -219,39 +249,50 @@ def check_risk(
     
     if not is_valid_format:
         return {
-            "address": address,
-            "chain": chain,
-            "risk_score": 100,
-            "risk_level": "CRITICAL",
-            "findings": ["Invalid EVM address format."],
-            "recommendation": "Reject immediately."
+            "status": "success",
+            "data": {
+                "target_address": address,
+                "chain": chain,
+                "risk_score": 1.0,
+                "risk_level": "CRITICAL",
+                "action_recommendation": "BLOCK",
+                "threat_flags": ["Invalid EVM address format."],
+                "contract_verified": False,
+                "timestamp": int(datetime.now(timezone.utc).timestamp())
+            }
         }
 
     if is_zero_address:
         return {
-            "address": address,
-            "chain": chain,
-            "risk_score": 95,
-            "risk_level": "HIGH",
-            "findings": ["Zero address detected."],
-            "recommendation": "Do not interact."
+            "status": "success",
+            "data": {
+                "target_address": address,
+                "chain": chain,
+                "risk_score": 0.95,
+                "risk_level": "HIGH",
+                "action_recommendation": "BLOCK",
+                "threat_flags": ["Zero address detected."],
+                "contract_verified": False,
+                "timestamp": int(datetime.now(timezone.utc).timestamp())
+            }
         }
 
     return {
-        "address": address,
-        "chain": chain,
-        "risk_score": 12,
-        "risk_level": "LOW",
-        "findings": [
-            "Address format is valid.",
-            "No known malicious sanctions found on Base mainnet.",
-            "Normal tx history profile."
-        ],
-        "recommendation": "Safe to interact."
+        "status": "success",
+        "data": {
+            "target_address": address,
+            "chain": chain,
+            "risk_score": 0.05,
+            "risk_level": "LOW",
+            "action_recommendation": "ALLOW",
+            "threat_flags": [],
+            "contract_verified": True,
+            "timestamp": int(datetime.now(timezone.utc).timestamp())
+        }
     }
 
 # ------------------------------------------------------------------------------
-# 启动入口（位于最底部）
+# 启动入口
 # ------------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
